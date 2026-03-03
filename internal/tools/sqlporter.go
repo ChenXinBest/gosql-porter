@@ -2,6 +2,7 @@ package tools
 
 import (
 	"archive/zip"
+	"bufio"
 	"fmt"
 	"gosql/internal/config"
 	"io"
@@ -23,6 +24,63 @@ func init() {
 		fmt.Println("请先安装 mysqlshell，并添加到环境变量（mysqlsh --version 不可用）: ", err)
 	}
 	fmt.Println("检测到 mysqlshell：", string(out))
+}
+
+// runCommandWithStream 执行命令并实时流式输出
+// prefix 用于标识输出来源（如 [导出] [导入]）
+// 返回命令执行错误和完整输出
+func runCommandWithStream(cmd *exec.Cmd, prefix string) ([]byte, error) {
+	// 获取 stdout 和 stderr 的管道
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("创建 stdout 管道失败: %w", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("创建 stderr 管道失败: %w", err)
+	}
+
+	// 启动命令
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("启动命令失败: %w", err)
+	}
+
+	// 收集完整输出用于返回
+	var output strings.Builder
+
+	// 使用 channel 等待两个 goroutine 完成
+	done := make(chan struct{})
+
+	// 实时读取 stdout
+	go func() {
+		defer func() { done <- struct{}{} }()
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			line := scanner.Text()
+			fmt.Printf("%s %s\n", prefix, line)
+			output.WriteString(line + "\n")
+		}
+	}()
+
+	// 实时读取 stderr
+	go func() {
+		defer func() { done <- struct{}{} }()
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			line := scanner.Text()
+			fmt.Printf("%s %s\n", prefix, line)
+			output.WriteString(line + "\n")
+		}
+	}()
+
+	// 等待两个 goroutine 完成
+	<-done
+	<-done
+
+	// 等待命令结束
+	err = cmd.Wait()
+
+	return []byte(output.String()), err
 }
 
 // 检查连接是否可用
@@ -111,12 +169,12 @@ func LoadDump(cnf config.Config) {
 		"-e",
 		command,
 	)
-	fmt.Println("正在执行命令：", cmd.String())
-	out, err := cmd.CombinedOutput()
+	fmt.Println("正在执行导入命令……")
+	out, err := runCommandWithStream(cmd, "[导入]")
 	if err != nil {
 		log.Fatalf("导入数据库出错: %s\n错误详情: %v", string(out), err)
 	}
-	fmt.Println("导入成功！\n", string(out))
+	fmt.Println("导入成功！")
 }
 
 // 导出数据库到目录
@@ -166,14 +224,11 @@ func DumpSql(cnf config.Config) {
 		command,
 	)
 
-	// 打印命令用于调试
-	// fmt.Println("执行命令:", cmd.String())
-
-	out, err := cmd.CombinedOutput()
+	out, err := runCommandWithStream(cmd, "[导出]")
 	if err != nil {
 		log.Fatalln("导出数据库出错！\n", string(out), err)
 	}
-	fmt.Println("导出成功！", string(out))
+	fmt.Println("导出成功！")
 }
 
 func DelSchemas(cnf config.Config) {
