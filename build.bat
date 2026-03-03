@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
 echo ========================================
@@ -10,7 +11,7 @@ echo.
 set APP_NAME=gosql-porter
 set VERSION=1.0.0
 set BUILD_DIR=build
-set MAIN_PATH=./cmd/gosql
+set MAIN_PATH=.
 
 :: 清理旧的构建目录
 if exist %BUILD_DIR% rmdir /s /q %BUILD_DIR%
