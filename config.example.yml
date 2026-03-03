@@ -1,0 +1,27 @@
+db_settings:
+  # 源数据库
+  source:
+    host: 127.0.0.1
+    port: 3306
+    username: root
+    passwd: yourpasswd
+  # 目标数据库
+  target:
+    host: 127.0.0.1
+    port: 3306
+    username: root
+    passwd: yourpasswd
+options:
+  # 需要处理数据库
+  databases:
+    - db1
+    - db2
+    - db3
+  # 数据库文件暂存位置
+  dump_to: /path/to/dump
+  # 数据库备份地址(导出文件压缩有保存)，为空表示不备份
+  save_to: /path/to/save/backup
+  # mysqlsh操作的线程数
+  threads: 16
+  # 操作模式：0: 导出+导入 1：仅导出 2：仅导入
+  mode: 0
